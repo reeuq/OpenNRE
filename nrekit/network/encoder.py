@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 import math
+import capslayer
 
 def __dropout__(x, keep_prob=1.0):
     return tf.contrib.layers.dropout(x, keep_prob=keep_prob)
@@ -75,3 +76,22 @@ def birnn(x, length, hidden_size=230, cell_name='lstm', var_scope=None, keep_pro
             bw_states = bw_states[0]
         return tf.concat([fw_states, bw_states], axis=1)
 
+
+def capsnn(x, hidden_size=100, kernel_size=(3, 60), stride_size=(1, 1), var_scope=None, keep_prob=1.0):
+    with tf.variable_scope(var_scope or "capsnn", reuse=tf.AUTO_REUSE):
+        x = tf.expand_dims(x, -1)
+        x, activation = capslayer.layers.primaryCaps(inputs=x,
+                                                     filters=hidden_size,
+                                                     kernel_size=kernel_size,
+                                                     strides=stride_size,
+                                                     out_caps_dims=[4, 1])
+        x = tf.reshape(x, [-1, x.shape[1]*x.shape[2]*x.shape[3], x.shape[4], x.shape[5]])
+        activation = tf.reshape(activation, [-1, activation.shape[1]*activation.shape[2]*activation.shape[3]])
+        x, activation = capslayer.layers.dense(inputs=x,
+                                               activation=activation,
+                                               num_outputs=20,
+                                               out_caps_dims=[16, 1],
+                                               coordinate_addition=False)
+        x = tf.reshape(x, [-1, x.shape[1]*x.shape[2]*x.shape[3]])
+        x = __dropout__(x, keep_prob)
+        return x

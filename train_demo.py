@@ -49,6 +49,9 @@ class model(nrekit.framework.re_model):
         elif model.encoder == "birnn":
             x_train = nrekit.network.encoder.birnn(x, self.length, keep_prob=0.5)
             x_test = nrekit.network.encoder.birnn(x, self.length, keep_prob=1.0)
+        elif model.encoder == "capsnn":
+            x_train = nrekit.network.encoder.capsnn(x, keep_prob=0.5)
+            x_test = nrekit.network.encoder.capsnn(x, keep_prob=1.0)
         else:
             raise NotImplementedError
 
