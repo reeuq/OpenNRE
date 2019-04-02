@@ -90,6 +90,7 @@ def capsnn(x, hidden_size=100, kernel_size=(3, 60), stride_size=(1, 1), var_scop
         x, activation = capslayer.layers.dense(inputs=x,
                                                activation=activation,
                                                num_outputs=20,
+                                               routing_method='DynamicRouting',
                                                out_caps_dims=[16, 1],
                                                coordinate_addition=False)
         x = tf.reshape(x, [-1, x.shape[1]*x.shape[2]*x.shape[3]])
