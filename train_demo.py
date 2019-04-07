@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import nrekit
 import numpy as np
 import tensorflow as tf
@@ -56,7 +58,7 @@ class model(nrekit.framework.re_model):
             raise NotImplementedError
 
         # Selector
-        if model.selector == "att":
+        if model.selector == "att":  # 为什么att的test_logit不进行softmax？？
             self._train_logit, train_repre = nrekit.network.selector.bag_attention(x_train, self.scope, self.ins_label, self.rel_tot, True, keep_prob=0.5)
             self._test_logit, test_repre = nrekit.network.selector.bag_attention(x_test, self.scope, self.ins_label, self.rel_tot, False, keep_prob=1.0)
         elif model.selector == "ave":

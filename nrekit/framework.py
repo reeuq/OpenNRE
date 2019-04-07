@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import tensorflow as tf
 import os
 import sklearn.metrics
@@ -128,7 +130,7 @@ class re_framework:
         print("Start training...")
         
         # Init
-        config = tf.ConfigProto(allow_soft_placement=True)
+        config = tf.ConfigProto(allow_soft_placement=True)  # 如果你指定的设备不存在，允许TF自动分配设备
         self.sess = tf.Session(config=config)
         optimizer = optimizer(learning_rate)
         
