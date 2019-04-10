@@ -97,7 +97,6 @@ def capsnn(x, hidden_size=100, kernel_size=(3, 60), stride_size=(1, 1), var_scop
                 u_hats.append(u_hat)
 
             output = tf.concat(u_hats, axis=1)
-            assert output.get_shape() == [-1, 1152, 20, 16]
 
             b_ijs = tf.constant(np.zeros([output.shape[1], 20], dtype=np.float32))
             v_js = []

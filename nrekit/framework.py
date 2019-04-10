@@ -7,6 +7,13 @@ import numpy as np
 import sys
 import time
 
+
+def count2():
+    print('--------------------------------------')
+    print(np.sum([np.prod(v.get_shape().as_list()) for v in tf.trainable_variables()]))
+    print('--------------------------------------')
+
+
 def average_gradients(tower_grads):
     """Calculate the average gradient for each shared variable across all towers.
 
@@ -167,6 +174,7 @@ class re_framework:
         best_prec = None
         best_recall = None
         not_best_count = 0 # Stop training after several epochs without improvement.
+        count2()
         for epoch in range(max_epoch):
             print('###### Epoch ' + str(epoch) + ' ######')
             tot_correct = 0
