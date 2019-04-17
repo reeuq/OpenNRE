@@ -54,6 +54,7 @@ def average_gradients(tower_grads):
 class re_model:
     def __init__(self, train_data_loader, batch_size, max_length=120):
         self.word = tf.placeholder(dtype=tf.int32, shape=[None, max_length], name='word')
+        self.sdp = tf.placeholder(dtype=tf.int32, shape=[None, 29], name='sdp')
         self.pos1 = tf.placeholder(dtype=tf.int32, shape=[None, max_length], name='pos1')
         self.pos2 = tf.placeholder(dtype=tf.int32, shape=[None, max_length], name='pos2')
         self.label = tf.placeholder(dtype=tf.int32, shape=[batch_size], name='label')
@@ -89,6 +90,7 @@ class re_framework:
             batch_data = batch_data_gen.next_batch(batch_data_gen.batch_size // len(models))
             feed_dict.update({
                 model.word: batch_data['word'],
+                model.sdp: batch_data['sdp'],
                 model.pos1: batch_data['pos1'],
                 model.pos2: batch_data['pos2'],
                 model.label: batch_data['rel'],
@@ -108,6 +110,7 @@ class re_framework:
     def one_step(self, sess, model, batch_data, run_array):
         feed_dict = {
             model.word: batch_data['word'],
+            model.sdp: batch_data['sdp'],
             model.pos1: batch_data['pos1'],
             model.pos2: batch_data['pos2'],
             model.label: batch_data['rel'],

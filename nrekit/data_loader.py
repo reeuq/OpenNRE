@@ -145,6 +145,7 @@ class json_file_data_loader(file_data_loader):
         if not os.path.isdir(processed_data_dir):
             return False
         word_npy_file_name = os.path.join(processed_data_dir, name_prefix + '_word.npy')
+        sdp_npy_file_name = os.path.join(processed_data_dir, name_prefix + '_sdp.npy')
         pos1_npy_file_name = os.path.join(processed_data_dir, name_prefix + '_pos1.npy')
         pos2_npy_file_name = os.path.join(processed_data_dir, name_prefix + '_pos2.npy')
         rel_npy_file_name = os.path.join(processed_data_dir, name_prefix + '_rel.npy')
@@ -155,6 +156,7 @@ class json_file_data_loader(file_data_loader):
         word_vec_mat_file_name = os.path.join(processed_data_dir, word_vec_name_prefix + '_mat.npy')
         word2id_file_name = os.path.join(processed_data_dir, word_vec_name_prefix + '_word2id.json')
         if not os.path.exists(word_npy_file_name) or \
+           not os.path.exists(sdp_npy_file_name) or \
            not os.path.exists(pos1_npy_file_name) or \
            not os.path.exists(pos2_npy_file_name) or \
            not os.path.exists(rel_npy_file_name) or \
@@ -167,6 +169,7 @@ class json_file_data_loader(file_data_loader):
             return False
         print("Pre-processed files exist. Loading them...")
         self.data_word = np.load(word_npy_file_name)
+        self.data_sdp = np.load(sdp_npy_file_name)
         self.data_pos1 = np.load(pos1_npy_file_name)
         self.data_pos2 = np.load(pos2_npy_file_name)
         self.data_rel = np.load(rel_npy_file_name)
@@ -182,7 +185,8 @@ class json_file_data_loader(file_data_loader):
         print("Finish loading")
         return True
 
-    def __init__(self, file_name, word_vec_file_name, rel2id_file_name, mode, shuffle=True, max_length=120, case_sensitive=False, reprocess=False, batch_size=160):
+    def __init__(self, file_name, word_vec_file_name, rel2id_file_name, mode, shuffle=True, max_length=120,
+                 case_sensitive=False, reprocess=False, batch_size=160, sdp_max_length=29):
         '''
         file_name: Json file storing the data in the following format
             [
@@ -219,6 +223,7 @@ class json_file_data_loader(file_data_loader):
         self.word_vec_file_name = word_vec_file_name
         self.case_sensitive = case_sensitive
         self.max_length = max_length
+        self.sdp_max_length = sdp_max_length
         self.mode = mode
         self.shuffle = shuffle
         self.batch_size = batch_size
@@ -246,6 +251,7 @@ class json_file_data_loader(file_data_loader):
                     self.ori_data[i]['sentence'] = self.ori_data[i]['sentence'].lower()
                     self.ori_data[i]['head']['word'] = self.ori_data[i]['head']['word'].lower()
                     self.ori_data[i]['tail']['word'] = self.ori_data[i]['tail']['word'].lower()
+                    self.ori_data[i]['sdp'] = self.ori_data[i]['sdp'].lower()
                 print("Finish eliminating")
 
             # Sort data by entities and relations
@@ -278,6 +284,7 @@ class json_file_data_loader(file_data_loader):
             self.entpair2scope = {} # (head, tail) -> scope
             self.relfact2scope = {} # (head, tail, relation) -> scope
             self.data_word = np.zeros((self.instance_tot, self.max_length), dtype=np.int32)
+            self.data_sdp = np.zeros((self.instance_tot, self.sdp_max_length), dtype=np.int32)
             self.data_pos1 = np.zeros((self.instance_tot, self.max_length), dtype=np.int32) 
             self.data_pos2 = np.zeros((self.instance_tot, self.max_length), dtype=np.int32)
             self.data_rel = np.zeros((self.instance_tot), dtype=np.int32)
@@ -294,6 +301,7 @@ class json_file_data_loader(file_data_loader):
                 else:
                     self.data_rel[i] = self.rel2id['NA']
                 sentence = ' '.join(ins['sentence'].split()) # delete extra spaces
+                sdp = ' '.join(ins['sdp'].split())
                 head = ins['head']['word']
                 tail = ins['tail']['word']
                 cur_entpair = ins['head']['id'] + '#' + ins['tail']['id']
@@ -330,6 +338,17 @@ class json_file_data_loader(file_data_loader):
                     p2 += 1
                 # if p1 == -1 or p2 == -1:
                 #     raise Exception("[ERROR] Sentence doesn't contain the entity, index = {}, sentence = {}, head = {}, tail = {}".format(i, sentence, head, tail))
+
+                sdp_words = sdp.split()
+                cur_ref_sdp_word = self.data_sdp[i]
+                for index_i, sdp_word in enumerate(sdp_words):
+                    if index_i < sdp_max_length:
+                        if sdp_word in self.word2id:
+                            cur_ref_sdp_word[index_i] = self.word2id[sdp_word]
+                        else:
+                            cur_ref_sdp_word[index_i] = UNK
+                for index_j in range(index_i+1, sdp_max_length):
+                    cur_ref_sdp_word[index_j] = BLANK
 
                 words = sentence.split()
                 cur_ref_data_word = self.data_word[i]         
@@ -388,6 +407,7 @@ class json_file_data_loader(file_data_loader):
             if not os.path.isdir(processed_data_dir):
                 os.mkdir(processed_data_dir)
             np.save(os.path.join(processed_data_dir, name_prefix + '_word.npy'), self.data_word)
+            np.save(os.path.join(processed_data_dir, name_prefix + '_sdp.npy'), self.data_sdp)
             np.save(os.path.join(processed_data_dir, name_prefix + '_pos1.npy'), self.data_pos1)
             np.save(os.path.join(processed_data_dir, name_prefix + '_pos2.npy'), self.data_pos2)
             np.save(os.path.join(processed_data_dir, name_prefix + '_rel.npy'), self.data_rel)
@@ -455,6 +475,7 @@ class json_file_data_loader(file_data_loader):
                 idx1 = len(self.order)
             self.idx = idx1
             batch_data['word'] = self.data_word[idx0:idx1]
+            batch_data['sdp'] = self.data_sdp[idx0:idx1]
             batch_data['pos1'] = self.data_pos1[idx0:idx1]
             batch_data['pos2'] = self.data_pos2[idx0:idx1]
             batch_data['rel'] = self.data_rel[idx0:idx1]
@@ -464,6 +485,7 @@ class json_file_data_loader(file_data_loader):
             if idx1 - idx0 < batch_size:
                 padding = batch_size - (idx1 - idx0)
                 batch_data['word'] = np.concatenate([batch_data['word'], np.zeros((padding, self.data_word.shape[-1]), dtype=np.int32)])
+                batch_data['sdp'] = np.concatenate([batch_data['sdp'], np.zeros((padding, self.data_sdp.shape[-1]), dtype=np.int32)])
                 batch_data['pos1'] = np.concatenate([batch_data['pos1'], np.zeros((padding, self.data_pos1.shape[-1]), dtype=np.int32)])
                 batch_data['pos2'] = np.concatenate([batch_data['pos2'], np.zeros((padding, self.data_pos2.shape[-1]), dtype=np.int32)])
                 batch_data['mask'] = np.concatenate([batch_data['mask'], np.zeros((padding, self.data_mask.shape[-1]), dtype=np.int32)])
@@ -476,6 +498,7 @@ class json_file_data_loader(file_data_loader):
                 idx1 = len(self.order)
             self.idx = idx1
             _word = []
+            _sdp = []
             _pos1 = []
             _pos2 = []
             _mask = []
@@ -488,6 +511,7 @@ class json_file_data_loader(file_data_loader):
             cur_pos = 0
             for i in range(idx0, idx1):
                 _word.append(self.data_word[self.scope[self.order[i]][0]:self.scope[self.order[i]][1]])
+                _sdp.append(self.data_sdp[self.scope[self.order[i]][0]:self.scope[self.order[i]][1]])
                 _pos1.append(self.data_pos1[self.scope[self.order[i]][0]:self.scope[self.order[i]][1]])
                 _pos2.append(self.data_pos2[self.scope[self.order[i]][0]:self.scope[self.order[i]][1]])
                 _mask.append(self.data_mask[self.scope[self.order[i]][0]:self.scope[self.order[i]][1]])
@@ -505,6 +529,7 @@ class json_file_data_loader(file_data_loader):
                     _entpair.append(self.scope_name[self.order[i]])
             for i in range(batch_size - (idx1 - idx0)):
                 _word.append(np.zeros((1, self.data_word.shape[-1]), dtype=np.int32))
+                _sdp.append(np.zeros((1, self.data_sdp.shape[-1]), dtype=np.int32))
                 _pos1.append(np.zeros((1, self.data_pos1.shape[-1]), dtype=np.int32))
                 _pos2.append(np.zeros((1, self.data_pos2.shape[-1]), dtype=np.int32))
                 _mask.append(np.zeros((1, self.data_mask.shape[-1]), dtype=np.int32))
@@ -517,6 +542,7 @@ class json_file_data_loader(file_data_loader):
                     _multi_rel.append(np.zeros((self.rel_tot), dtype=np.int32))
                     _entpair.append('None#None')
             batch_data['word'] = np.concatenate(_word)
+            batch_data['sdp'] = np.concatenate(_sdp)
             batch_data['pos1'] = np.concatenate(_pos1)
             batch_data['pos2'] = np.concatenate(_pos2)
             batch_data['mask'] = np.concatenate(_mask)

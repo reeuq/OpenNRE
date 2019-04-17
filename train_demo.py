@@ -37,6 +37,7 @@ class model(nrekit.framework.re_model):
         
         # Embedding
         x = nrekit.network.embedding.word_position_embedding(self.word, self.word_vec_mat, self.pos1, self.pos2)
+        x_sdp = nrekit.network.embedding.word_embedding(self.sdp, self.word_vec_mat)
 
         # Encoder
         if model.encoder == "pcnn":
@@ -54,6 +55,13 @@ class model(nrekit.framework.re_model):
         elif model.encoder == "capsnn":
             x_train = nrekit.network.encoder.capsnn(x, keep_prob=0.5)
             x_test = nrekit.network.encoder.capsnn(x, keep_prob=1.0)
+        elif model.encoder == "pcnn_cnn":
+            x_train_word = nrekit.network.encoder.pcnn(x, self.mask, keep_prob=0.5)
+            x_test_word = nrekit.network.encoder.pcnn(x, self.mask, keep_prob=1.0)
+            x_train_sdp = nrekit.network.encoder.cnn(x_sdp, keep_prob=0.5)
+            x_test_sdp = nrekit.network.encoder.cnn(x_sdp, keep_prob=1.0)
+            x_train = tf.concat([x_train_word, x_train_sdp], 1)
+            x_test = tf.concat([x_test_word, x_test_sdp], 1)
         else:
             raise NotImplementedError
 
@@ -112,4 +120,4 @@ if use_rl:
     rl_framework = nrekit.rl.rl_re_framework(train_loader, test_loader)
     rl_framework.train(model, nrekit.rl.policy_agent, model_name=dataset_name + "_" + model.encoder + "_" + model.selector + "_rl", max_epoch=60, ckpt_dir="checkpoint")
 else:
-    framework.train(model, model_name=dataset_name + "_" + model.encoder + "_" + model.selector, max_epoch=60, ckpt_dir="checkpoint", gpu_nums=1)
+    framework.train(model, model_name=dataset_name + "_" + model.encoder + "_" + model.selector, max_epoch=60, ckpt_dir="checkpoint", gpu_nums=2)
