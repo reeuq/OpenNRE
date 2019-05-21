@@ -151,6 +151,7 @@ class json_file_data_loader(file_data_loader):
         rel_npy_file_name = os.path.join(processed_data_dir, name_prefix + '_rel.npy')
         mask_npy_file_name = os.path.join(processed_data_dir, name_prefix + '_mask.npy')
         length_npy_file_name = os.path.join(processed_data_dir, name_prefix + '_length.npy')
+        sdp_length_npy_file_name = os.path.join(processed_data_dir, name_prefix + '_sdp_length.npy')
         entpair2scope_file_name = os.path.join(processed_data_dir, name_prefix + '_entpair2scope.json')
         relfact2scope_file_name = os.path.join(processed_data_dir, name_prefix + '_relfact2scope.json')
         word_vec_mat_file_name = os.path.join(processed_data_dir, word_vec_name_prefix + '_mat.npy')
@@ -162,6 +163,7 @@ class json_file_data_loader(file_data_loader):
            not os.path.exists(rel_npy_file_name) or \
            not os.path.exists(mask_npy_file_name) or \
            not os.path.exists(length_npy_file_name) or \
+           not os.path.exists(sdp_length_npy_file_name) or \
            not os.path.exists(entpair2scope_file_name) or \
            not os.path.exists(relfact2scope_file_name) or \
            not os.path.exists(word_vec_mat_file_name) or \
@@ -175,6 +177,7 @@ class json_file_data_loader(file_data_loader):
         self.data_rel = np.load(rel_npy_file_name)
         self.data_mask = np.load(mask_npy_file_name)
         self.data_length = np.load(length_npy_file_name)
+        self.data_sdp_length = np.load(sdp_length_npy_file_name)
         self.entpair2scope = json.load(open(entpair2scope_file_name))
         self.relfact2scope = json.load(open(relfact2scope_file_name))
         self.word_vec_mat = np.load(word_vec_mat_file_name)
@@ -290,6 +293,7 @@ class json_file_data_loader(file_data_loader):
             self.data_rel = np.zeros((self.instance_tot), dtype=np.int32)
             self.data_mask = np.zeros((self.instance_tot, self.max_length), dtype=np.int32)
             self.data_length = np.zeros((self.instance_tot), dtype=np.int32)
+            self.data_sdp_length = np.zeros((self.instance_tot), dtype=np.int32)
             last_entpair = ''
             last_entpair_pos = -1
             last_relfact = ''
@@ -349,6 +353,9 @@ class json_file_data_loader(file_data_loader):
                             cur_ref_sdp_word[index_i] = UNK
                 for index_j in range(index_i+1, sdp_max_length):
                     cur_ref_sdp_word[index_j] = BLANK
+                self.data_sdp_length[i] = len(sdp_words)
+                if len(sdp_words) > sdp_max_length:
+                    self.data_sdp_length[i] = sdp_max_length
 
                 words = sentence.split()
                 cur_ref_data_word = self.data_word[i]         
@@ -413,6 +420,7 @@ class json_file_data_loader(file_data_loader):
             np.save(os.path.join(processed_data_dir, name_prefix + '_rel.npy'), self.data_rel)
             np.save(os.path.join(processed_data_dir, name_prefix + '_mask.npy'), self.data_mask)
             np.save(os.path.join(processed_data_dir, name_prefix + '_length.npy'), self.data_length)
+            np.save(os.path.join(processed_data_dir, name_prefix + '_sdp_length.npy'), self.data_sdp_length)
             json.dump(self.entpair2scope, open(os.path.join(processed_data_dir, name_prefix + '_entpair2scope.json'), 'w'))
             json.dump(self.relfact2scope, open(os.path.join(processed_data_dir, name_prefix + '_relfact2scope.json'), 'w'))
             np.save(os.path.join(processed_data_dir, word_vec_name_prefix + '_mat.npy'), self.word_vec_mat)
@@ -481,6 +489,7 @@ class json_file_data_loader(file_data_loader):
             batch_data['rel'] = self.data_rel[idx0:idx1]
             batch_data['mask'] = self.data_mask[idx0:idx1]
             batch_data['length'] = self.data_length[idx0:idx1]
+            batch_data['sdp_length'] = self.data_sdp_length[idx0:idx1]
             batch_data['scope'] = np.stack([list(range(batch_size)), list(range(1, batch_size + 1))], axis=1)
             if idx1 - idx0 < batch_size:
                 padding = batch_size - (idx1 - idx0)
@@ -491,6 +500,7 @@ class json_file_data_loader(file_data_loader):
                 batch_data['mask'] = np.concatenate([batch_data['mask'], np.zeros((padding, self.data_mask.shape[-1]), dtype=np.int32)])
                 batch_data['rel'] = np.concatenate([batch_data['rel'], np.zeros((padding), dtype=np.int32)])
                 batch_data['length'] = np.concatenate([batch_data['length'], np.zeros((padding), dtype=np.int32)])
+                batch_data['sdp_length'] = np.concatenate([batch_data['sdp_length'], np.zeros((padding), dtype=np.int32)])
         elif self.mode == self.MODE_ENTPAIR_BAG or self.mode == self.MODE_RELFACT_BAG:
             idx0 = self.idx
             idx1 = self.idx + batch_size
@@ -507,6 +517,7 @@ class json_file_data_loader(file_data_loader):
             _multi_rel = []
             _entpair = []
             _length = []
+            _sdp_length = []
             _scope = []
             cur_pos = 0
             for i in range(idx0, idx1):
@@ -518,6 +529,7 @@ class json_file_data_loader(file_data_loader):
                 _rel.append(self.data_rel[self.scope[self.order[i]][0]])
                 _ins_rel.append(self.data_rel[self.scope[self.order[i]][0]:self.scope[self.order[i]][1]])
                 _length.append(self.data_length[self.scope[self.order[i]][0]:self.scope[self.order[i]][1]])
+                _sdp_length.append(self.data_sdp_length[self.scope[self.order[i]][0]:self.scope[self.order[i]][1]])
                 bag_size = self.scope[self.order[i]][1] - self.scope[self.order[i]][0]
                 _scope.append([cur_pos, cur_pos + bag_size])
                 cur_pos = cur_pos + bag_size
@@ -536,6 +548,7 @@ class json_file_data_loader(file_data_loader):
                 _rel.append(0)
                 _ins_rel.append(np.zeros((1), dtype=np.int32))
                 _length.append(np.zeros((1), dtype=np.int32))
+                _sdp_length.append(np.zeros((1), dtype=np.int32))
                 _scope.append([cur_pos, cur_pos + 1])
                 cur_pos += 1
                 if self.mode == self.MODE_ENTPAIR_BAG:
@@ -552,6 +565,7 @@ class json_file_data_loader(file_data_loader):
                 batch_data['multi_rel'] = np.stack(_multi_rel)
                 batch_data['entpair'] = _entpair
             batch_data['length'] = np.concatenate(_length)
+            batch_data['sdp_length'] = np.concatenate(_sdp_length)
             batch_data['scope'] = np.stack(_scope)
 
         return batch_data

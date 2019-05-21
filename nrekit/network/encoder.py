@@ -76,6 +76,14 @@ def birnn(x, length, hidden_size=230, cell_name='lstm', var_scope=None, keep_pro
             bw_states = bw_states[0]
         return tf.concat([fw_states, bw_states], axis=1)
 
+def birnn_att(x, length, hidden_size=230, cell_name='lstm', var_scope=None, keep_prob=1.0):
+    with tf.variable_scope(var_scope or "birnn_att", reuse=tf.AUTO_REUSE):
+        x = __dropout__(x, keep_prob)
+        fw_cell = __rnn_cell__(hidden_size, cell_name)
+        bw_cell = __rnn_cell__(hidden_size, cell_name)
+        outputs, _ = tf.nn.bidirectional_dynamic_rnn(fw_cell, bw_cell, x, sequence_length=length, dtype=tf.float32, scope='dynamic-bi-rnn-att')
+        fw_outputs, bw_outputs = outputs
+        return tf.concat([fw_outputs, bw_outputs], axis=2)
 
 def capsnn(x, hidden_size=100, kernel_size=(3, 60), stride_size=(1, 1), var_scope=None, keep_prob=1.0):
     with tf.variable_scope(var_scope or "capsnn", reuse=tf.AUTO_REUSE):

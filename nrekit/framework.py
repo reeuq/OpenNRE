@@ -60,6 +60,7 @@ class re_model:
         self.label = tf.placeholder(dtype=tf.int32, shape=[batch_size], name='label')
         self.ins_label = tf.placeholder(dtype=tf.int32, shape=[None], name='ins_label')
         self.length = tf.placeholder(dtype=tf.int32, shape=[None], name='length')
+        self.sdp_length = tf.placeholder(dtype=tf.int32, shape=[None], name='sdp_length')
         self.scope = tf.placeholder(dtype=tf.int32, shape=[batch_size, 2], name='scope')
         self.train_data_loader = train_data_loader
         self.rel_tot = train_data_loader.rel_tot
@@ -97,6 +98,7 @@ class re_framework:
                 model.ins_label: batch_data['ins_rel'],
                 model.scope: batch_data['scope'],
                 model.length: batch_data['length'],
+                model.sdp_length: batch_data['sdp_length'],
             })
             if 'mask' in batch_data and hasattr(model, "mask"):
                 feed_dict.update({model.mask: batch_data['mask']})
@@ -117,6 +119,7 @@ class re_framework:
             model.ins_label: batch_data['ins_rel'],
             model.scope: batch_data['scope'],
             model.length: batch_data['length'],
+            model.sdp_length: batch_data['sdp_length'],
         }
         if 'mask' in batch_data and hasattr(model, "mask"):
             feed_dict.update({model.mask: batch_data['mask']})
@@ -141,6 +144,7 @@ class re_framework:
         
         # Init
         config = tf.ConfigProto(allow_soft_placement=True)  # 如果你指定的设备不存在，允许TF自动分配设备
+        config.gpu_options.allow_growth = True
         self.sess = tf.Session(config=config)
         optimizer = optimizer(learning_rate)
         
@@ -262,6 +266,9 @@ class re_framework:
         entpair_tot = 0
         test_result = []
         pred_result = []
+        predict_y = []
+        predict_y_prob = []
+        y_given = []
          
         for i, batch_data in enumerate(self.test_data_loader):
             iter_logit = self.one_step(self.sess, model, batch_data, [model.test_logit()])[0]
@@ -275,11 +282,18 @@ class re_framework:
             if tot_not_na > 0:
                 sys.stdout.write("[TEST] step %d | not NA accuracy: %f, accuracy: %f\r" % (i, float(tot_not_na_correct) / tot_not_na, float(tot_correct) / tot))
                 sys.stdout.flush()
+            predict_y.extend(iter_output.tolist())
+            predict_y_prob.extend(iter_logit.max(-1).tolist())
             for idx in range(len(iter_logit)):
+                multi_relation = []
+                for rel in range(self.test_data_loader.rel_tot):
+                    if batch_data['multi_rel'][idx][rel] == 1:
+                        multi_relation.append(rel)
+                y_given.append(multi_relation)
                 for rel in range(1, self.test_data_loader.rel_tot):
                     test_result.append({'score': iter_logit[idx][rel], 'flag': batch_data['multi_rel'][idx][rel]})
                     if batch_data['entpair'][idx] != "None#None":
-                        pred_result.append({'score': float(iter_logit[idx][rel]), 'entpair': batch_data['entpair'][idx].encode('utf-8'), 'relation': rel})
+                        pred_result.append({'score': float(iter_logit[idx][rel]), 'entpair': batch_data['entpair'][idx], 'relation': rel})
                 entpair_tot += 1 
         sorted_test_result = sorted(test_result, key=lambda x: x['score'])
         prec = []
@@ -298,4 +312,29 @@ class re_framework:
         if not return_result:
             return auc
         else:
-            return (auc, pred_result)
+            return auc, pred_result, predict_y, predict_y_prob, y_given
+
+        #     for idx in range(len(iter_logit)):
+        #         for rel in range(1, self.test_data_loader.rel_tot):
+        #             test_result.append({'score': iter_logit[idx][rel], 'flag': batch_data['multi_rel'][idx][rel]})
+        #             if batch_data['entpair'][idx] != "None#None":
+        #                 pred_result.append({'score': float(iter_logit[idx][rel]), 'entpair': batch_data['entpair'][idx].encode('utf-8'), 'relation': rel})
+        #         entpair_tot += 1
+        # sorted_test_result = sorted(test_result, key=lambda x: x['score'])
+        # prec = []
+        # recall = []
+        # correct = 0
+        # for i, item in enumerate(sorted_test_result[::-1]):
+        #     correct += item['flag']
+        #     prec.append(float(correct) / (i + 1))
+        #     recall.append(float(correct) / self.test_data_loader.relfact_tot)
+        # auc = sklearn.metrics.auc(x=recall, y=prec)
+        # print("\n[TEST] auc: {}".format(auc))
+        # print("Finish testing")
+        # self.cur_prec = prec
+        # self.cur_recall = recall
+        #
+        # if not return_result:
+        #     return auc
+        # else:
+        #     return (auc, pred_result)

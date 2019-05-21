@@ -5,7 +5,7 @@ import numpy as np
 import tensorflow as tf
 import sys
 import os
-
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 dataset_name = 'nyt'
 if len(sys.argv) > 1:
     dataset_name = sys.argv[1]
@@ -62,6 +62,66 @@ class model(nrekit.framework.re_model):
             x_test_sdp = nrekit.network.encoder.cnn(x_sdp, keep_prob=1.0)
             x_train = tf.concat([x_train_word, x_train_sdp], 1)
             x_test = tf.concat([x_test_word, x_test_sdp], 1)
+        elif model.encoder == "pcnn_cnn_full":
+            x_train_word = nrekit.network.encoder.pcnn(x, self.mask, keep_prob=0.5)
+            x_test_word = nrekit.network.encoder.pcnn(x, self.mask, keep_prob=1.0)
+            x_train_sdp = nrekit.network.encoder.cnn(x_sdp, keep_prob=0.5)
+            x_test_sdp = nrekit.network.encoder.cnn(x_sdp, keep_prob=1.0)
+            x_train = tf.concat([x_train_word, x_train_sdp], 1)
+            x_test = tf.concat([x_test_word, x_test_sdp], 1)
+            with tf.variable_scope('full-connect', reuse=tf.AUTO_REUSE):
+                relation_matrix = tf.get_variable('weight_matrix', shape=[x_train.shape[1], 230], dtype=tf.float32,
+                                                  initializer=tf.contrib.layers.xavier_initializer())
+                bias = tf.get_variable('weight_bias', shape=[230], dtype=tf.float32,
+                                       initializer=tf.contrib.layers.xavier_initializer())
+                x_train = tf.nn.tanh(tf.matmul(x_train, relation_matrix) + bias)
+                x_test = tf.nn.tanh(tf.matmul(x_test, relation_matrix) + bias)
+        elif model.encoder == "pcnn_rnn":
+            x_train_word = nrekit.network.encoder.pcnn(x, self.mask, keep_prob=0.5)
+            x_test_word = nrekit.network.encoder.pcnn(x, self.mask, keep_prob=1.0)
+            x_train_sdp = nrekit.network.encoder.rnn(x_sdp, self.sdp_length, keep_prob=0.5)
+            x_test_sdp = nrekit.network.encoder.rnn(x_sdp, self.sdp_length, keep_prob=1.0)
+            x_train = tf.concat([x_train_word, x_train_sdp], 1)
+            x_test = tf.concat([x_test_word, x_test_sdp], 1)
+        elif model.encoder == "pcnn_birnn":
+            x_train_word = nrekit.network.encoder.pcnn(x, self.mask, keep_prob=0.5)
+            x_test_word = nrekit.network.encoder.pcnn(x, self.mask, keep_prob=1.0)
+            x_train_sdp = nrekit.network.encoder.birnn(x_sdp, self.sdp_length, keep_prob=0.5)
+            x_test_sdp = nrekit.network.encoder.birnn(x_sdp, self.sdp_length, keep_prob=1.0)
+            x_train = tf.concat([x_train_word, x_train_sdp], 1)
+            x_test = tf.concat([x_test_word, x_test_sdp], 1)
+        elif model.encoder == "birnn_att_cnn":
+            x_word = nrekit.network.encoder.birnn_att(x, self.length, hidden_size=110, keep_prob=1.0)
+            x_sdp = nrekit.network.encoder.cnn(x_sdp, hidden_size=220, keep_prob=1.0)
+            with tf.variable_scope("sentence_sdp_att", reuse=tf.AUTO_REUSE):
+                attention_score = tf.transpose(tf.nn.softmax(tf.matmul(tf.expand_dims(x_sdp, 1), tf.transpose(x_word, perm=[0, 2, 1])), -1), perm=[0, 2, 1])
+                x_att = tf.squeeze(tf.matmul(tf.transpose(x_word, perm=[0, 2, 1]), attention_score), [-1])
+            x_train = tf.contrib.layers.dropout(x_att, keep_prob=0.5)
+            x_test = tf.contrib.layers.dropout(x_att, keep_prob=1.0)
+        elif model.encoder == "birnn_rnn":
+            x_train_word = nrekit.network.encoder.birnn(x, self.length, keep_prob=0.5)
+            x_test_word = nrekit.network.encoder.birnn(x, self.length, keep_prob=1.0)
+            x_train_sdp = nrekit.network.encoder.rnn(x_sdp, self.sdp_length, keep_prob=0.5)
+            x_test_sdp = nrekit.network.encoder.rnn(x_sdp, self.sdp_length, keep_prob=1.0)
+            x_train = tf.concat([x_train_word, x_train_sdp], 1)
+            x_test = tf.concat([x_test_word, x_test_sdp], 1)
+        # elif model.encoder == "birnn_att_concat_cnn":
+        #     x_word = nrekit.network.encoder.birnn_att(x, self.length, hidden_size=110, keep_prob=1.0)
+        #     x_sdp = nrekit.network.encoder.cnn(x_sdp, hidden_size=220, keep_prob=1.0)
+        #     with tf.variable_scope("sentence_sdp_att", reuse=tf.AUTO_REUSE):
+        #         attention_w = tf.get_variable('attention_w', shape=[1, x.shape[1]], dtype=tf.float32,
+        #                                           initializer=tf.contrib.layers.xavier_initializer())
+        #
+        #         attention_score = tf.transpose(tf.nn.softmax(tf.matmul(tf.expand_dims(x_sdp, 1), tf.transpose(x_word, perm=[0, 2, 1])), -1), perm=[0, 2, 1])
+        #         x_att = tf.squeeze(tf.matmul(tf.transpose(x_word, perm=[0, 2, 1]), attention_score), [-1])
+        #     x_train = tf.contrib.layers.dropout(x_att, keep_prob=0.5)
+        #     x_test = tf.contrib.layers.dropout(x_att, keep_prob=1.0)
+        elif model.encoder == "none_birnn":
+            x_train = nrekit.network.encoder.birnn(x_sdp, self.sdp_length, keep_prob=0.5)
+            x_test = nrekit.network.encoder.birnn(x_sdp, self.sdp_length, keep_prob=1.0)
+        elif model.encoder == "none_cnn":
+            x_train = nrekit.network.encoder.cnn(x_sdp, keep_prob=0.5)
+            x_test = nrekit.network.encoder.cnn(x_sdp, keep_prob=1.0)
         else:
             raise NotImplementedError
 
@@ -120,4 +180,4 @@ if use_rl:
     rl_framework = nrekit.rl.rl_re_framework(train_loader, test_loader)
     rl_framework.train(model, nrekit.rl.policy_agent, model_name=dataset_name + "_" + model.encoder + "_" + model.selector + "_rl", max_epoch=60, ckpt_dir="checkpoint")
 else:
-    framework.train(model, model_name=dataset_name + "_" + model.encoder + "_" + model.selector, max_epoch=60, ckpt_dir="checkpoint", gpu_nums=2)
+    framework.train(model, model_name=dataset_name + "_" + model.encoder + "_" + model.selector, max_epoch=60, ckpt_dir="checkpoint", gpu_nums=1)

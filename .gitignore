@@ -5,6 +5,9 @@ summary
 checkpoint
 test_result
 log_sbatch
+result_archive
+result_baseline
+test_result_Zeng
 
 # files
 *.pyc
